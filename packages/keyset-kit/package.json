@@ -1,6 +1,6 @@
 {
   "name": "keyset-kit",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Keyset pagination for any JavaScript runtime: a typed filter AST with a per-type operator table, sort and page validation, HMAC-signed expiring cursors bound to the query, and a query plan a database adapter renders. Database-free.",
   "keywords": [
     "cursor",
