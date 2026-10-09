@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // The root config files only. Packages and e2e/ have their own tsconfig.
+  "extends": "./tsconfig.base.json",
+  "include": ["*.config.ts"]
+}

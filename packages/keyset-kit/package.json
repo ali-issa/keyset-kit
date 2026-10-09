@@ -1,0 +1,57 @@
+{
+  "name": "keyset-kit",
+  "version": "0.0.0",
+  "description": "Keyset pagination for any JavaScript runtime: a typed filter AST with a per-type operator table, sort and page validation, HMAC-signed expiring cursors bound to the query, and a query plan a database adapter renders. Database-free.",
+  "keywords": [
+    "cursor",
+    "cursor-pagination",
+    "keyset",
+    "keyset-pagination",
+    "pagination",
+    "postgres",
+    "seek"
+  ],
+  "homepage": "https://github.com/ali-issa/keyset-kit/tree/main/packages/keyset-kit#readme",
+  "bugs": "https://github.com/ali-issa/keyset-kit/issues",
+  "license": "MIT",
+  "author": "Ali Issa (https://github.com/ali-issa)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ali-issa/keyset-kit.git",
+    "directory": "packages/keyset-kit"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": "./dist/index.js",
+      "./package.json": "./package.json"
+    },
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "check:pkg": "publint --strict && attw --pack . --profile esm-only",
+    "prepack": "pnpm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

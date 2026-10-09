@@ -1,0 +1,29 @@
+{
+  "name": "keyset-kit-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "End-to-end tests: a consumer of the built keyset-kit and kysely-keyset packages, exercised against PGlite, node-postgres, and a PostgreSQL server.",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "smoke:bun": "bun run smoke/run.ts",
+    "smoke:deno": "deno run --allow-read --allow-env smoke/run.ts",
+    "smoke:workerd": "node --experimental-strip-types smoke/workerd.ts",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@electric-sql/pglite-socket": "0.2.11",
+    "@types/node": "26.4.1",
+    "@types/pg": "8.23.1",
+    "keyset-kit": "workspace:*",
+    "kysely": "0.29.6",
+    "kysely-keyset": "workspace:*",
+    "miniflare": "4.20260730.0",
+    "pg": "8.23.1",
+    "tsdown": "0.23.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0"
+  }
+}

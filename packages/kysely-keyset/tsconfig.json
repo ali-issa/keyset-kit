@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Resolve `keyset-kit` to its source through the `source` condition
+    // of its exports map (written by tsdown's `devExports`), so this package
+    // type-checks against the core as it is edited, without a build in
+    // between. Consumers, e2e/ included, never see the condition.
+    // @ref https://tsdown.dev/options/package-exports#devexports
+    // @ref https://www.typescriptlang.org/tsconfig/#customConditions
+    "customConditions": ["source"]
+  },
+  "include": ["src/**/*.ts", "*.config.ts"],
+  "exclude": ["dist", "node_modules", "coverage"]
+}

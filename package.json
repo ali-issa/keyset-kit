@@ -1,0 +1,57 @@
+{
+  "name": "keyset-kit-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Keyset pagination for JavaScript: keyset-kit, the database-free core, and kysely-keyset, the Kysely adapter for PostgreSQL.",
+  "homepage": "https://github.com/ali-issa/keyset-kit#readme",
+  "bugs": "https://github.com/ali-issa/keyset-kit/issues",
+  "license": "MIT",
+  "author": "Ali Issa (https://github.com/ali-issa)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ali-issa/keyset-kit.git"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/**\" run build",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "check": "pnpm run --sequential \"/^check:/\"",
+    "check:deps": "knip",
+    "check:format": "oxfmt --check",
+    "check:lint": "oxlint",
+    "check:pkg": "pnpm -r --filter \"./packages/**\" run check:pkg",
+    "check:types": "tsc --noEmit && pnpm -r --filter \"./packages/**\" run typecheck",
+    "format": "oxfmt",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "prepare": "lefthook install",
+    "release": "pnpm run build && changeset publish",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "pnpm run build && pnpm --filter keyset-kit-e2e run typecheck && pnpm --filter keyset-kit-e2e run test",
+    "test:runtimes": "pnpm run build && pnpm --filter keyset-kit-e2e run smoke:bun && pnpm --filter keyset-kit-e2e run smoke:deno && pnpm --filter keyset-kit-e2e run smoke:workerd",
+    "test:watch": "vitest",
+    "typecheck": "pnpm run check:types"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
+    "@changesets/changelog-github": "1.0.1",
+    "@changesets/cli": "3.0.2",
+    "@types/node": "26.4.1",
+    "@vitest/coverage-v8": "5.0.0",
+    "knip": "6.34.0",
+    "lefthook": "2.1.12",
+    "oxfmt": "0.66.0",
+    "oxlint": "1.81.0",
+    "oxlint-tsgolint": "7.0.2001",
+    "publint": "0.3.24",
+    "tsdown": "0.23.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@12.3.4"
+}

@@ -1,0 +1,114 @@
+# Release automation with Changesets.
+#
+# On every push to main, `select-mode` reads the repository state and picks
+# one of:
+#   - `version`: pending changesets exist, so the "Version Packages" PR is
+#     opened or updated (bumps package.json and CHANGELOG.md);
+#   - `publish`: no pending changesets and at least one package
+#     (packages/*) holds a version that is not on npm, so `changeset publish`
+#     publishes those packages, tags the commit once per package, and
+#     creates a GitHub release for each;
+#   - `none`: nothing to do (running `version` here would open an empty PR).
+#
+# The CI workflow runs on the same push but as a separate workflow, so a
+# publish would not wait for it. The publish job therefore repeats the gates
+# on the exact commit it publishes (build, checks, unit and e2e suites) and
+# stops before `changeset publish` when any of them fail. The runtime smoke
+# tests stay in CI: they need Bun and Deno.
+#
+# Publishing uses npm trusted publishing (OIDC): no NPM_TOKEN secret. pnpm
+# publish exchanges the GitHub id-token for a short-lived npm token and npm
+# attaches provenance automatically. One-time setup on npmjs.com for each
+# package (keyset-kit and kysely-keyset): Settings > Trusted publisher >
+# GitHub Actions, repository ali-issa/keyset-kit, workflow filename
+# release.yml. pnpm publish also applies each package's publishConfig (the
+# dist-only exports map) and rewrites the workspace: range of kysely-keyset's
+# dependency on keyset-kit to the published version.
+# @ref https://changesets.dev/guide/automating#how-do-i-run-the-version-and-publish-commands
+# @ref https://docs.npmjs.com/trusted-publishers
+# @ref https://github.com/pnpm/pnpm/releases/tag/v11.0.7 (OIDC in pnpm publish)
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FORCE_COLOR: 1
+
+jobs:
+  select-mode:
+    name: Select mode
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      mode: ${{ steps.select-mode.outputs.mode }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      - id: select-mode
+        uses: changesets/action/select-mode@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
+
+  version:
+    name: Version PR
+    if: needs.select-mode.outputs.mode == 'version'
+    needs: select-mode
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      - uses: changesets/action/version@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
+        with:
+          script: pnpm run changeset:version
+          commit-message: 'chore(release): version packages'
+          pr-title: 'chore(release): version packages'
+
+  publish:
+    name: Publish to npm
+    if: needs.select-mode.outputs.mode == 'publish'
+    needs: select-mode
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      # Gates on the commit being published; see the header comment. Same
+      # order as CONTRIBUTING.md: build first because the type-aware lint of
+      # e2e/ and the package checks read dist/.
+      - run: pnpm run build
+      - run: pnpm run check
+      - run: pnpm run test
+      - run: pnpm run test:e2e
+      - uses: changesets/action/publish@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
+        with:
+          script: pnpm run release

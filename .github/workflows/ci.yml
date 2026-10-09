@@ -1,0 +1,232 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_COLOR: 1
+
+jobs:
+  quality:
+    name: Format, lint, types, deps
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      # The type-aware lint of e2e/ resolves both packages into their dist/,
+      # so build first. The packages themselves resolve each other from
+      # source (the `source` export condition) and need no build.
+      - run: pnpm run build
+      - run: pnpm run check:format
+      - run: pnpm run check:lint
+      - run: pnpm run check:types
+      - run: pnpm run check:deps
+
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+      - run: pnpm install --frozen-lockfile
+      # Both packages' projects in one run; kysely-keyset resolves keyset-kit
+      # from source, so no build is needed here.
+      - run: pnpm run test:coverage
+      - if: matrix.node == 24
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+
+  test-kysely-floor:
+    name: Test (Kysely 0.28, the peer range floor)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      # The adapter declares `kysely >= 0.28.0`; its unit tests compile SQL
+      # through the oldest version in that range. The e2e suite needs 0.29
+      # for the built-in PGlite dialect.
+      - run: pnpm --filter kysely-keyset add --save-dev kysely@0.28.17
+      - run: pnpm --filter kysely-keyset run typecheck
+      - run: pnpm --filter kysely-keyset run test
+
+  build:
+    name: Build and package checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm run check:pkg
+      # The build rewrites each package's exports maps; a diff means the
+      # committed maps drifted from the tsdown entry maps.
+      - run: git diff --exit-code -- packages/keyset-kit/package.json packages/kysely-keyset/package.json
+      # pnpm pack applies publishConfig (the dist-only exports map) and
+      # rewrites workspace: ranges, as a publish would.
+      - run: pnpm -r --filter "./packages/**" exec pnpm pack --pack-destination /tmp/pack
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tarball
+          path: /tmp/pack/*.tgz
+          retention-days: 7
+
+  e2e:
+    name: E2E (Node ${{ matrix.node }}, PGlite)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+      - run: pnpm install --frozen-lockfile
+      # The e2e workspace consumes both built packages through `workspace:*`,
+      # so it type-checks and runs against dist/ exactly as an install would.
+      - run: pnpm run build
+      - run: pnpm --filter keyset-kit-e2e run typecheck
+      - run: pnpm --filter keyset-kit-e2e run test
+
+  e2e-postgres:
+    name: E2E (PostgreSQL ${{ matrix.postgres }} server)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: [14, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      # The same suite as the PGlite files, against a real server: NULLS
+      # LAST ordering, tsquery search, and microsecond casts are proven on
+      # the planner and executor that production uses. The file skips
+      # itself when the variable is unset.
+      - run: pnpm --filter keyset-kit-e2e exec vitest run postgres
+        env:
+          KEYSET_PG_URL: postgres://postgres:postgres@localhost:5432/postgres
+
+  runtimes:
+    name: Smoke (Bun, Deno, workerd)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: latest
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.x
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      # One module importing both packages, driven in-process by each
+      # runtime (e2e/smoke/). workerd runs through Miniflare on Node.
+      - run: pnpm --filter keyset-kit-e2e run smoke:bun
+      - run: pnpm --filter keyset-kit-e2e run smoke:deno
+      - run: pnpm --filter keyset-kit-e2e run smoke:workerd
+
+  changeset:
+    name: Changeset present
+    if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'changeset-release/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      # Fails when a package's src/ changed without a changeset. Docs-only
+      # PRs pass.
+      - run: |
+          if git diff --quiet origin/${{ github.base_ref }}...HEAD -- packages/keyset-kit/src packages/kysely-keyset/src; then
+            echo "No package source changes; changeset not required."
+          else
+            pnpm changeset status --since=origin/${{ github.base_ref }}
+          fi

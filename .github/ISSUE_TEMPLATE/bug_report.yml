@@ -1,0 +1,46 @@
+name: Bug report
+description: Something behaves differently from the documentation.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Package and version
+      placeholder: keyset-kit 1.0.0, or kysely-keyset 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and version
+      placeholder: Node 24.11, Bun 1.3, Cloudflare Workers (compat date), Deno 2.x
+    validations:
+      required: true
+  - type: input
+    id: kysely
+    attributes:
+      label: Kysely version and PostgreSQL version
+      description: When the report concerns kysely-keyset.
+    validations:
+      required: false
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: A short script or a link to a repository. Include the keyset definition, the request (sort, filter, page), and the compiled SQL from `onQuery` when you have it.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the page returned, the SQL, or the error output.
+    validations:
+      required: true
